@@ -1,19 +1,31 @@
+
 workflows:
   android-build:
     name: PovaIsland Android APK
     max_build_duration: 60
-
     instance_type: linux_x2
 
     environment:
-      android: 36
       java: 17
 
     scripts:
       - name: Check project files
         script: |
+          echo "Checking project..."
           ls -la
           ls -la app
+
+      - name: Install Android SDK 36
+        script: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "SDK Manager not found"
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Build debug APK
         script: |
@@ -21,9 +33,9 @@ workflows:
             echo "ERROR: Gradle wrapper is missing!"
             exit 1
           fi
+
           chmod +x gradlew
           ./gradlew assembleDebug
 
     artifacts:
       - app/build/outputs/apk/debug/*.apk
-      - app/build/outputs/apk/debug/output-metadata.json

@@ -1,0 +1,54 @@
+workflows:
+  android-build:
+    name: PovaIsland Android APK
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      java: 17
+
+    scripts:
+      - name: Verify Android project layout
+        script: |
+          set -e
+          test -d app
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          echo "Android project layout is present."
+
+      - name: Install Gradle 8.9
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          curl -fL --retry 3 \
+            https://services.gradle.org/distributions/gradle-8.9-bin.zip \
+            -o /tmp/gradle-8.9-bin.zip
+          unzip -q /tmp/gradle-8.9-bin.zip -d /tmp
+          echo "Gradle installed:"
+          /tmp/gradle-8.9/bin/gradle --version
+
+      - name: Configure Android SDK 36
+        script: |
+          set -e
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [ -z "$SDK_ROOT" ]; then
+            echo "Android SDK environment variable is not set on this runner."
+            exit 1
+          fi
+          echo "sdk.dir=$SDK_ROOT" > local.properties
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Android sdkmanager was not found under $SDK_ROOT/cmdline-tools."
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Build debug APK
+        script: |
+          set -e
+          /tmp/gradle-8.9/bin/gradle --no-daemon --stacktrace assembleDebug
+
+    artifacts:
+      - app/build/outputs/apk/debug/*.apk
+      - app/build/outputs/apk/debug/output-metadata.json
